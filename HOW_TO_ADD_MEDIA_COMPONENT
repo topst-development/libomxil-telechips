@@ -1,0 +1,17 @@
+
+	How to add or remove libraries:
+	
+ 	You can include or exclude omx-il component libraries from build.
+	
+	Most libraries were enabled to be built by default, if you want to disable one of these libraries, 
+	you must explicitly disable the library by using "--disable-xxxdec" option in the configure time.
+	for example, if you want to disable aacdec-component library, open the tccomxil_build file and add "--diable-aacdec" at the "./configure" part.
+	
+	On the other hand, the libraries listed below were disabled by default.
+	Please contact us, if you want to use these libraries
+
+	1. WMA decoder component
+	2. AC3 decoder component
+	3. DDP decoder component
+	4. DTS decoder component
+	5. WMV decoder component

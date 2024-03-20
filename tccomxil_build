@@ -1,0 +1,272 @@
+#! /bin/bash
+
+BUILD_MODE=$1
+PREFIX_MODE=$2
+CPU_NUM=$3
+
+function Usage() {
+	echo "Usage: $0"
+	echo
+	echo "Configuration:"
+	echo "-h, --help              Display this help and exit"
+	echo
+	echo "For better control, use the options below."
+	echo
+	echo "Optional features:"
+	echo "-d, --debug             Enable debug mode"
+	echo "-r, --release           Enable release mode"
+	echo " 1, --prebuilts         Local build"
+	echo " 2, --download          Board Target build"
+	exit 1
+}
+
+PREFIX_MENU_CHOICES=(prebuilts download)
+
+#
+# Autoreconf
+#
+autoreconf -ivf
+
+#
+# File execute permission check
+#
+if [ ! -x configure ]; then
+	chmod +x configure
+fi
+
+#
+# Check for options
+#
+gst_opt_debug=""
+
+invalid_args="false"
+change_config=no
+	case $BUILD_MODE in
+	-r | --release)
+		gst_opt_debug=""
+		;;
+	-d | --debug)
+		gst_opt_debug="--enable-debug"
+		;;
+	-h | --help)
+		Usage $@
+		;;
+	*)
+		echo "\"$BUILD_MODE\" is invalid argument!"
+		echo "Augument is either \"release\" or \"debug\"."
+		invalid_args="true"
+		;;
+	esac
+
+if [ $invalid_args = "true" ]; then
+	echo "Please, recheck and try again."
+	exit 1
+fi
+
+enable_ac3dec=no
+enable_dtsdec=no
+enable_wmadec=no
+enable_ddpdec=no
+enable_wmv78dec=no
+enable_wmv9dec=no
+enable_securevideo=$LINUX_PLATFORM_TZTEE
+enable_maxframebuffer=true
+enable_dolbyvision=no
+
+gst_opt_ac3dec="--disable-ac3dec"
+gst_opt_dtsdec="--disable-dtsdec"
+gst_opt_wmadec="--disable-wmadec"
+gst_opt_ddpdec="--disable-ddpdec"
+gst_opt_wmv78dec="--disable-wmv78dec"
+gst_opt_wmv9dec="--disable-wmv9dec"
+opt_securevideo="--disable-securevideo"
+opt_maxframebuffer="--disable-maxframebuffer"
+opt_dolbyvision="--disable-dolbyvision"
+
+if [ "${enable_ac3dec}" = "yes" ]; then
+gst_opt_ac3dec="--enable-ac3dec"
+fi
+if [ "${enable_dtsdec}" = "yes" ]; then
+gst_opt_dtsdec="--enable-dtsdec"
+fi
+if [ "${enable_wmadec}" = "yes" ]; then
+gst_opt_wmadec="--enable-wmadec"
+fi
+if [ "${enable_ddpdec}" = "yes" ]; then
+gst_opt_ddpdec="--enable-ddpdec"
+fi
+if [ "${enable_wmv78dec}" = "yes" ]; then
+gst_opt_wmv78dec="--enable-wmv78dec"
+fi
+if [ "${enable_wmv9dec}" = "yes" ]; then
+gst_opt_wmv9dec="--enable-wmv9dec"
+fi
+if [ "${enable_securevideo}" = "true" ]; then
+opt_securevideo="--enable-securevideo"
+fi
+if [ "${enable_maxframebuffer}" = "true" ]; then
+opt_maxframebuffer="--enable-maxframebuffer"
+fi
+if [ "${enable_dolbyvision}" = "true" ]; then
+opt_dolbyvision="--enable-dolbyvision"
+fi
+
+#
+# Directory settings
+#
+current_dir=`pwd`
+#project_dir=`expr "${current_dir}" : '\(.*\)/gstreamer/.*'`
+project_dir=$LINUX_PLATFORM_ROOTDIR
+prebuilts_dir=/prebuilts
+download_dir=/$BUILDDIR/libomxil-tcc-1.0.0
+tcc_install_dir='/home/B100348/zeus_0123'
+if [ "${tcc_install_dir:-unset}" = "unset" -o "${tcc_install_dir}" != "${project_dir}" ]; then
+	change_config=yes
+fi
+
+if [ "${change_config}" = "yes" ]; then
+	tcc_install_dir=`echo ${project_dir} | sed -e 's/\//\\\\\//g'`
+	# tccomxiltcc_build
+	sed -e "s/^tcc_install_dir=.*/tcc_install_dir='${tcc_install_dir}'/" $0 > temp_build.$$
+	chmod +x temp_build.$$
+	# Execute tccomxiltcc_build
+	/bin/bash temp_build.$$ $@
+	if [ $? -ne 0 ]; then
+		rm -rf temp_build.$$
+		exit $?
+	fi
+	mv -f temp_build.$$ $0
+	exit
+fi
+
+#
+# Check for prefix
+#
+if (echo -n $PREFIX_MODE | grep -q -e "^[0-9][0-9]*$")
+then
+	if [ $PREFIX_MODE -le ${#PREFIX_MENU_CHOICES[@]} ]
+	then
+		selection=${PREFIX_MENU_CHOICES[$(($PREFIX_MODE-1))]}
+	fi
+fi
+
+if [ "$selection" = "" ]; then
+	echo
+	echo "Invalid prefix: $PREFIX_MODE"
+	exit
+elif [ "$selection" = "prebuilts" ]; then
+	tcc_prefix_dir=${tcc_install_dir}${prebuilts_dir}
+	echo " 1, --prebuilts         Local build"
+elif [ "$selection" = "download" ]; then
+	tcc_prefix_dir=${tcc_install_dir}${download_dir}
+	echo " 2, --download          Board Target build"
+fi
+
+#
+# Configure
+#
+##LINUX_PLATFORM_MACHINE=tcc8930
+
+if [ "$LINUX_PLATFORM_MACHINE" = "tcc892x" ]; then
+	chipname="tcc892x"
+	#chipname="tcc8925s"
+	target_cflag="-mcpu=arm1176jzf-s -mfloat-abi=softfp -mfpu=vfp -DTCC_892x_INCLUDE"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/arch/arm/mach-tcc892x/include/"
+elif [ "$LINUX_PLATFORM_MACHINE" = "tcc8930" ]; then
+	chipname="tcc893x"
+	#chipname="tcc8935s"
+	target_cflag="-mcpu=arm1176jzf-s -mfloat-abi=softfp -mfpu=vfp -DTCC_893x_INCLUDE"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/arch/arm/mach-tcc893x/include/"
+elif [ "$LINUX_PLATFORM_MACHINE" = "tcc8960" ]; then
+	chipname="tcc896x"
+	target_cflag="-mcpu=cortex-a7 -mfloat-abi=softfp -mfpu=neon-vfpv4 -DTCC_896x_INCLUDE"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/arch/arm/mach-tcc896x/include/"
+elif [ "$LINUX_PLATFORM_MACHINE" = "tcc8970" ]; then
+	chipname="tcc897x"
+	target_cflag="-mcpu=cortex-a7 -mfloat-abi=softfp -mfpu=neon-vfpv4 -DTCC_897x_INCLUDE"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/arch/arm/mach-tcc897x/include/"
+elif [ "$LINUX_PLATFORM_MACHINE" = "tcc898x" ]; then
+	chipname="tcc898x"
+	target_cflag="-mcpu=cortex-a7 -mfloat-abi=softfp -mfpu=neon-vfpv4 -DTCC_898x_INCLUDE"
+	#host_name="arm-unknown-linux-gnueabi"
+	#target_name="arm-unknown-linux-gnueabi"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/include/video/tcc"
+elif [ "$LINUX_PLATFORM_MACHINE" = "tcc802x" ]; then
+	chipname="tcc802x"
+	target_cflag="-mcpu=cortex-a7 -mfloat-abi=softfp -mfpu=neon-vfpv4 -DTCC_802x_INCLUDE"
+	#host_name="arm-unknown-linux-gnueabi"
+	#target_name="arm-unknown-linux-gnueabi"
+	host_name="arm-none-linux-gnueabi"
+	target_name="arm-none-linux-gnueabi"
+	video_kerneldir="${LINUX_PLATFORM_KERNELDIR}/arch/arm/mach-tcc802x/include/"
+fi
+
+if [ "$LINUX_PLATFORM_VSYNC_INCLUDE" = "yes" ]; then
+	target_cflag+=" -DTCC_VSYNC_INCLUDE"
+fi
+
+./configure \
+			--build=i686-pc-linux-gnu --host=${host_name} --target=${target_name} \
+			--prefix=${tcc_prefix_dir} \
+			${gst_opt_debug} \
+			${gst_opt_wmv78dec} ${gst_opt_wmv9dec} \
+			${gst_opt_ddpdec} ${gst_opt_ac3dec} ${gst_opt_dtsdec} ${gst_opt_wmadec} \
+			${opt_securevideo} \
+			--disable-llog \
+			CPPFLAGS="-I${tcc_install_dir}${prebuilts_dir}/include" \
+			CFLAGS="$target_cflag" \
+			LDFLAGS="-L${tcc_install_dir}${prebuilts_dir}/lib" \
+			PKG_CONFIG_PATH="${tcc_install_dir}${prebuilts_dir}/lib/pkgconfig" \
+			VIDEO_KERNEL_DIR="${video_kerneldir}" \
+			PROCESSOR=$chipname
+
+if [ "$?" -ne 0 ]
+then
+           echo -en "\r\n\r\n"
+           echo -en "$FAILED: ... configure \n"
+           echo -en "\r\n\r\n"
+           exit 1
+fi
+
+# Clean
+make clean
+
+#
+# Compile
+#
+make $CPU_NUM
+
+if [ "$?" -ne 0 ]
+then
+           echo -en "\r\n\r\n"
+           echo -en "$FAILED: ... make \n"
+           echo -en "\r\n\r\n"
+           exit 1
+fi
+
+#
+# Install
+#
+make install
+
+if [ "$?" -ne 0 ]
+then
+           echo -en "\r\n\r\n"
+           echo -en "$FAILED: ... make install \n"
+           echo -en "\r\n\r\n"
+           exit 1
+fi
+
+if [ "$selection" = "download" ]; then
+	cp -rf $tcc_prefix_dir/* $tcc_install_dir/$BUILDDIR/tccgst/
+fi
